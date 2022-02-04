@@ -15,6 +15,11 @@ int main(int argc, char **argv) {
     std::cout << "Usage: " << argv[0] << " FILE COMMAND" << std::endl;
     std::exit(1);
   }
+
+  // This is important.
+  std::cout << "And now my watch begins..." << std::endl;
+  atexit([](){ std::cout << "And now my watch ends..." << std::endl; });
+
   const char *filepath = argv[1];
 
   struct stat s;
