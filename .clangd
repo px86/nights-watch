@@ -1,0 +1,2 @@
+CompileFlags:
+  Add: [-Wall, -Werror, -Wshadow, -pedantic, -std=c++11, -Wno-nonull]
