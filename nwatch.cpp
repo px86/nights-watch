@@ -1,7 +1,8 @@
-#include <cerrno>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <vector>
+#include <cstring>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -11,23 +12,62 @@
 #include <sys/wait.h>
 
 int main(int argc, char **argv) {
-  if (argc < 3) {
-    std::cout << "Usage: " << argv[0] << " FILE COMMAND" << std::endl;
+  auto print_usage_and_exit = [argv]() {
+    std::cout << "Usage: " << argv[0] << " FILE [FILE]* -- COMMAND" << std::endl;
     std::exit(1);
-  }
+  };
+
+  if (argc < 4) print_usage_and_exit();
 
   // This is important.
-  std::cout << "And now my watch begins..." << std::endl;
-  atexit([](){ std::cout << "And now my watch ends..." << std::endl; });
+  std::cout << "\x1b[32m\n" "And now my watch begins..." "\x1b[m\n\n";
+  atexit([]() { std::cout << "\x1b[33m\n" "And now my watch ends..." "\x1b[m\n\n"; });
 
-  const char *filepath = argv[1];
+  auto filepaths = std::vector<const char*>();
 
-  struct stat s;
-  if (stat(filepath, &s) < 0) {
-    std::perror("stat failed");
-    std::exit(1);
+  int cmd_offset = -1;
+  for (int i = 1; i < argc; ++i) {
+    if (!strcmp(argv[i], "--")) {
+      cmd_offset = ++i;
+      break;
+    }
+    filepaths.push_back(argv[i]);
   }
-  timespec old = s.st_mtim;
+
+  if (cmd_offset == -1 || cmd_offset == argc)
+    print_usage_and_exit();
+
+  auto file_stats = std::vector<struct stat>(filepaths.size());
+  auto restat_files = [&filepaths, &file_stats]()
+  {
+    for (size_t i=0; i<filepaths.size(); ++i) {
+      if (stat(filepaths[i], &file_stats[i]) < 0) {
+	std::perror("\x1b[31m" "stat failed" "\x1b[m");
+	std::exit(1);
+      }
+    }
+  };
+  restat_files();
+
+  auto last_mtimes = std::vector<timespec>(file_stats.size());
+  auto update_last_mtimes = [&file_stats, &last_mtimes]()
+  {
+    for (size_t i=0; i<file_stats.size(); ++i) {
+      last_mtimes[i] = file_stats[i].st_mtim;
+    }
+  };
+  update_last_mtimes();
+
+  auto compare_mtimes = [&last_mtimes, &file_stats, &update_last_mtimes]() -> bool
+  {
+    for (size_t i=0; i<file_stats.size(); ++i) {
+      if (last_mtimes[i].tv_sec != file_stats[i].st_mtim.tv_sec) {
+	update_last_mtimes();
+	return true;
+      }
+    }
+    return false;
+  };
 
   auto watcher = [&]() {
     pid_t pid = fork();
@@ -36,21 +76,15 @@ int main(int argc, char **argv) {
       std::exit(1);
     }
     if (pid == 0) {
-      if (execvp(argv[2], argv+2) < 0) {
+      if (execvp(argv[cmd_offset], argv+cmd_offset) < 0) {
 	perror("exec failed");
 	std::exit(1);
       }
     }
     while (true) {
       sleep(2);
-      if (stat(filepath, &s) < 0) {
-	std::perror("stat failed");
-	std::exit(1);
-      }
-      if (s.st_mtim.tv_sec != old.tv_sec) {
-	old = s.st_mtim;
-	std::cout << "[Modified] " << s.st_mtim.tv_sec << '\n';
-
+      restat_files();
+      if (compare_mtimes()) {
         // Kill the child process
         if (kill(pid, SIGKILL) < 0) {
 	  perror("kill failed");
