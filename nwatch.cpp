@@ -11,6 +11,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+void end_msg(int sig) {
+  std::cout << "\x1b[33m\n" "And now my watch ends..." "\x1b[m\n\n";
+  std::exit(1);
+}
+
 int main(int argc, char **argv) {
   auto print_usage_and_exit = [argv]() {
     std::cout << "Usage: " << argv[0] << " FILE [FILE]* -- COMMAND" << std::endl;
@@ -19,9 +24,8 @@ int main(int argc, char **argv) {
 
   if (argc < 4) print_usage_and_exit();
 
-  // This is important.
   std::cout << "\x1b[32m\n" "And now my watch begins..." "\x1b[m\n\n";
-  atexit([]() { std::cout << "\x1b[33m\n" "And now my watch ends..." "\x1b[m\n\n"; });
+  signal(SIGINT, end_msg); // Ctrl + c
 
   auto filepaths = std::vector<const char*>();
 
