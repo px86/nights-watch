@@ -1,4 +1,26 @@
-#+TITLE: Night's Watch - A watcher program
+#+TITLE: Night's Watch - watch files for modifications
 #+AUTHOR: Pushkar Raj
 
-And now my watch begins...
+* About
+
+=nwatch= accepts file names and a command. It repeatedly checks the files for modifications and re-executes the given command.
+
+* Compilation
+
+#+begin_src shell
+  make
+#+end_src
+
+* Usage
+
+For example, let's say that you have two files named, =index.html= and =style.css=, and you want to restart the web server, every-time you modify any of the files.
+
+#+begin_src shell
+  nwatch index.html css/style.css -- python3 -m http.server
+#+end_src
+
+* Notes
+
+- Works only on UNIX like platforms.
+
+- Currently the given command is launched using =exec= calls, so do not expect =shell= like behavior, e.g. =&= and file globing etc. However, it may be supported in the near future.
